@@ -1,0 +1,462 @@
+---
+title: "US General Social Survey_An ANOVA Exercise "
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+ 
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(ggpubr)
+```
+
+```{r load-data}
+load("gss.Rdata")
+```
+
+## **Part 1: Data**
+**The GSS Survey**    
+
+The General Social Survey (GSS) is part of a continuing study of American public opinion and values that began in 1972.  It is conducted every two years.  
+
+The main purpose of GSS is to gather information about contemporary American society in order to study and explain trends in attitudes and behaviors.
+
+**Sampling Design**    
+
+The target population of the GSS is adults (aged 18 or over) living in households in the US.
+Based on the address of the household, the research organization NORC at the University of Chicago randomly selected households across the US to ensure the survey represents all households in the country.  All households in the US have an equal chance of being selected for the survey.  
+
+Within the selected household, one member in the household will then randomly selected to meet the requirement of legitimate survey research.  
+
+**Data Collection Method**  
+
+In most cases, the survey is conducted through face-to-face interviews.  Interviews will be taken places in respondents’ homes, or other preferred places.  Answers will be immediately entered to the interveiwee’s laptop (i.e. computer assisted personal interviewing CAPI).  
+
+Only under very special conditions when in-person interview is proved difficult to be done, then the interview may be conducted by phone.  
+
+
+**Concerns**    
+
+Until 2006, the GSS only sampled the English speaking population.  Since 2006, the GSS sample Sampanish speakers in addition to English speakers.  As a result, those who cannot speak English are excluded.  
+
+Youth who move out to their homes and live in the dorm will not be reached.  
+
+All of these exclusions will hamper the representativeness of the survey.  
+
+
+**Association or Causality**  
+
+In short, GSS is a survey that based on observations and use random sampling.  GSS is **NOT** an experimental research with random assignment.  Therefore, the results from GSS have nothing to do with causality.  Rather, its results can only show if a relationship between variables exists or not.  
+
+## **Part 2: Research question**
+
+We are interested in the socioeconomic status difference among political party affliated groups in the US.  
+
+Traditionally, Republicans are associated with white collars with high socioeconomic status (prestige occupation, high income, and highly educated).  By contrast, blue-collars and the disadvantaged were more likely to be Democrats.  However, such pattern was reversed in the 2016 US Presidential Election.  Many Trump supporters were blue collars and unemployed workers.    
+
+So the research question is to see **if there is a difference of the average socioeconomic index scores (SEI) among the three political party affiliation groups**, namely "Strong Democrat","Strong Republican", and "Independent".  
+
+The formal hypothesis will be given in the **Inference Section**.  
+
+
+
+## **Part 3: EDA**
+   In this section, we will describe why and how the dataset will be cleaned.  Then, we will take a look at the statistics summary of the data.  Tables and data visualization will be given as well. 
+ 
+*  **Data preparation - Step 1**
+   In this exercise, we can think "**SEI**" as the response variable and "**partyid**" as the explanatory variable.  Let's take a look at these two variables, and see if there's any NA in these two variables first.  
+   
+     
+```{r}
+table(is.na(gss$sei))
+table(is.na(gss$partyid))
+```
+  We do find a lot of NAs.  25784 in sei and 327 in partyid.  
+  
+     
+  Obviously, we need to remove all NAs.  In addition, since we are interested in only two variables, it'd better to shrink the dataset by selecting the two interested variables only.  Moreover, since the country has been changing in the past decades, data from the 1970s, 1980s, and 1990s will less likely be relevant giving that we are not doing a longitudinal study.  Hence, we will limit the data within the last decade (As mentioned in the last section, GSS is conducted every two years).  
+  
+  Once the data is ready, we can run a statistics summary to see what the new data looks like.
+     
+```{r select var and take a first look}
+ gss1 = gss %>% filter(!is.na(sei)) %>% filter(!is.na(partyid)) %>% 
+        filter(year %in% c("2000", "2002", "2004", "2006", "2008", "2010", "2012")) %>% select(sei, partyid, year)
+
+str(gss1)
+
+```
+
+* How does the dataset look afer the first step data preparation?
+
+```{r summary}
+summary(gss1)
+
+levels(gss1$partyid)
+
+```
+    
+*  **Data preparation - Step 2**
+     +  From the summary, we see:
+          + After removed the NAs, there are 15877 cases in the clean data set "gss1"
+          + sei is a numerical variable and partyid is a categorical variable
+          + partyid is a factor with 8 levels
+            
+          
+     +  It's better to focus on 3 levels only and that's what we are going to do now. 
+     
+```{r  filter partyid}
+gss2 = gss1 %>% filter(partyid %in% c("Strong Democrat" , "Independent" , "Strong Republican")) %>% select(partyid, sei)
+
+str(gss2)
+summary(gss2)
+```
+ *  After the filter, we see:  
+     + the data size is down to 7371 cases
+     + Only 3 main party affiliations are included (i.e. the 3 levels of partyid. The other 4 levels are empty.)
+     + interestingly enough, there are more **Independents** than the other two in the data set.  those who identified themselves as **Strong Republicans** are the least.  
+     
+There is one more step to do regarding the data.  Although we selected the 3 partyid levels only, and the result of other four levels are empty, they are still counted in the factor of partyid.  The output shows there are 8 levels in the factor of partyid.  Hence, we need to use the function **droplevels** to take the 4 empty levels out from the gss2 and put the result in a new data **gss3**.  
+
+As we are going to see, there will be only 3 levels in "partyid" in the gss3 data set.  The four empty levels will be gone.  The removal will make the inference step cleaner and easier to read.  
+
+```{r}
+ gss3 = droplevels(gss2)
+ str(gss3)
+```
+
+* **Statistics Summary of the cleaned dataset "gss3"**
+
+```{r}
+  gss3 %>% group_by(partyid) %>% summarise(gp_SEI_midpt = median(sei),gp_SEI_avg = mean(sei), SEI_std = sd(sei), IQR = IQR(sei), Gp_case=n())
+
+```
+* Observations:
+     +  According to the gp_SEI_midpt, the median SEI of Strong Republicans is the highest among the three.
+     +  By contrast, the median SEI of the Independents is the lowest.
+     +  The median SEI of the Strong Democrat is between the other two.
+     
+     +  The pattern of means (gp_sei_avg) is the same as the median SEI among the three party groups.   
+     +  Apparently, the mean of each partyid group differ from each other.  Are these group differences really statistically significant?
+     
+     +  Standard deviations of Strong Democrat and Strong Republican are not that different.
+     
+     +  Like the standard deviation, the IQR of SEI among the Strong Democrat is higher than the other two.
+     
+
+* **Data visualization**
+
+* Group Variabilities
+
+  
+
+Now let's explore the possible relationship between **sei** and **partyid** by plotting a boxplot.
+
+```{r}
+ggplot(gss3, aes(x = partyid, y = sei, fill =partyid)) +
+        geom_boxplot(alpha=0.7) +
+        scale_y_continuous(name = "SEI",
+                           breaks = seq(0, 105, 25),
+                           limits=c(0, 105)) +
+        scale_x_discrete(name = "Party ID") +
+        ggtitle("Boxplot of SEI by Party ID") 
+```
+  
+  
+
+*  Observations:  
+
+     +  Distributions of SEI are right skewed among Strong Democrat and Independent groups.  
+     
+     +  Distributions of SEI are close to normal within the Strong Republican group.  
+     
+     +  Medians of Strong Democrat and Independent groups are lower than it is in the Strong Republican group.
+     
+     +  In the Strong Republican group, the main 50% are almost evenly split (Median in the middle of the box).
+     
+
+## **Part 4: Inference**
+
+* **Hypothesis**  
+
+
+     +  H~o~:  The average SEI score is the same across all three political party affiliated groups (partyid: Strong Democrat, Strong Republican, Independent)  
+          + Mu~1~ = Mu~2~ = Mu~3~    
+          
+     +  H~A~:  The average SEI scores differ between at least one pair of political party affiliated groups (partyid: Strong Democrat, Strong Republican, Independent)  
+
+   
+* **Method** 
+
+     + **What?**  
+     
+        In this project, I will use ANOVA to do the hypothesis testing.  Here are the reasons:  
+        
+     +  **Why?**  
+     
+          + Firstly, research question is to find out if there is a difference of average SEI scores among the three "partyid" groups.  In other words, I am comparing means from more than two groups. (So a t-test for 2 means comparison is inappropriate)  
+          
+
+          +  Secondly, "SEI" is a continuous numeric variable and "partyid" is a categorical variable with three levels.(In a Chi-square test, both variables should be categorical)    
+          
+
+          +  Thirdly, there is only one categorical variable, not two. (So two-ways is not necessary)  
+          
+
+
+        Therefore, One-WAY ANOVA is the appropriate method.  
+        
+     +  **How?**  
+     
+        + ANOVA is based on variablity.  
+
+        + Total variability in SEI will be partitioned into two parts (i.e. variability partitioning):  
+Between group variability:  Variability attributed to the 3 partyid groups. 
+Within group variability: Variability unexplained by the explanatory variable (partyid), and has to be attributed to other factors.  
+
+        + Since we want to determine if mean difference really exists among the 3 groups, we hope the between group variability will be bigger than the within group variability.  As such, the F statistic (the ratio of between group variability and within group variability) will be large and a small p-value could be achieved.  
+       
+        + Finally, the F-statistic and p-value only tell us there are mean difference among the groups.  But we dont know which pair.  So we will use the post-hoc multiple comparison to determine which group is different from the other.  
+
+   
+ 
+**Check conditions**  
+
+* **Independence**  
+
+     
+     +  Within group: sampled observations must be independent of each other
+          +  GSS uses random sampling design  
+          +  The observations of each of the three groups are ranged from 1798, 2578, to 2995.  Obviously, each group size is less than 10% of respective population.  
+          
+     +  Between groups:  groups must be independent of each other
+          +  In the GSS survey, only one person will be selected in each household.
+          +  Hence, each respondent is **unlikely** to be related with the other respondents, e.g. family members, spouse, etc.  
+          
+     +  We, therefore, have confidence in saying that the independence condition is met.          
+            
+
+* **Approximate Normality**  
+     + Distributions should be nearly normal within each group.    
+     
+     + If the distribution is very skewed, then n must be larger than 30 or more.  
+     
+     + Since the sample size of gss3 is more than 7000, and each partyid group has at least 1000 observations.  It looks like even though the histogram shows SEI is skewed, but the large sample size could meet the approximate normality condition.  Let's check it out through visualization and tests.  
+     
+  
+     *  **Visualization**  
+
+First, let's see the histogram and density chart.
+```{r}
+hist(gss3$sei, probability=T, main="Histogram of skewed data",xlab="SEI")
+lines(density(gss3$sei),col=2)
+```
+
+
+The red line represents the density plot doesn't show a bell shape.  
+
+
+
+Let's use the qqplot to check the normality.
+```{r qqplot}
+op <- par(mfrow=c(1,3))
+for(i in levels(gss3$partyid)){
+  tmp <- with(gss3, sei[partyid==i])
+  qqnorm(tmp,xlab="SEI",main=i)
+  qqline(tmp, col="Red")
+}
+par(op)
+rm(i,tmp)
+
+```
+
+Observations:
+ - All 3 groups have strong tails.
+ - The mid section of Strong Democrat and Strong Republican groups are aligned on the red straight line.  If not because of the stong tails, the two distribution would have been normally distributed.  
+ 
+  *  **Normality Test**  
+     
+        Now, let's use a normality test to check if the normality condition is met.  
+        The test we are going to use is One-sample Kolmogorov-Smirnov test.
+
+        The normality test hypotheses are:
+             Null Hypothesis:  the SEI distribution fits the normal distribution
+             Alternative hypothesis: the SEI distribution does not dit the normal distribution
+
+```{r normality test}
+ks.test(gss3$sei, "pnorm", mean(gss3$sei), sd(gss3$sei))
+
+# ks.test(gss3$partyid, gss3$sei)
+```
+
+Since the p-value is so small, we have to reject the Null hypothesis that the SEI distribution is normal.  
+
+  * **Constant variance**  
+
+      Variability should be consistent across groups, especially important when sample sizes differ between groups
+     
+```{r}
+gss3 %>% group_by(partyid) %>% summarise(n=n(),sd = sd(sei))
+```
+  
+  It seems that the variability (/ variance spread) of the partyid groups (standard deviation) are not that different.  But is it really the case?  Let's do some tests.
+     
+```{r bartlett.test}
+bartlett.test(sei ~ partyid, data = gss3)  
+
+# small p-value, reject the hypothesis that we have constant variance
+
+```
+Bartlett test assumes the Null Hypothesis is that the constant variance exists.  The alternative hypothesis is that SEI in the gss3 dataset does not have constant variance among the 3 partyid groups.
+
+The p-value is quite small that leads to reject the Null Hypothesis.  In other words, there is no constant variance in our data.
+
+We would like to have a "second opinion".  Hence, we also perform Levene test.  The Null Hypothesis and the alternative hypothesis are the same as the Bartlett test.  
+
+```{r  Levene.test}
+fit = aov(sei ~ partyid, data=gss3)
+# summary(fit)
+# plot(fit)
+
+# treatment vs resideual height
+
+fit2.data = abs(fit$residuals)
+ fit2 = aov(fit2.data ~ gss3$sei)
+ summary(fit2)
+ 
+```
+Based on the tiny p-value from the Levene test, it confirms that our data does not meet the constant variance condition.
+
+
+
+
+
+* Perform Inference
+```{r hypothesis_testing}
+inference(sei, x=partyid, data=gss3, type = "ht", statistic = "mean", 
+          success = NULL, method = "theoretical", null=NULL, 
+          alternative = "greater", sig_level = 0.05)
+
+```
+
+
+*  **Understanding of the ANOVA output**
+The first row in the output table with “partyid” at the beginning will provide info about variability attributed to partyid groups. 
+The second row in the output table with “Residual” at the beginning will provide info about variability attributed to other factors.
+
+     + **Degree of freedom (df)**
+We have 7371 total observations in our sample.  7371 - 1 = 7370, which will be the df of the total. 
+There are 3 partyid groups so the degree of freedom (df) is 3 - 1 = 2 for partyid.  
+Df of the residuals will be 7370 – 2 = 7368
+
+     + **Sum of square (Sum_sq)**
+Sum of square in the second column represents variability in the response variable (SEI).  In this case, the total variability is 2766817.1286.  The total variability will be partited to 2 sections, i.e. variability partitioning. 
+110126.1712 represents “between groups variability”, the variability which **can** attributed to partyid groups.
+2656690.9574 represents “within group variability”, the variability which **cannot** attributed to partyid groups.  Rather this variability is caused by other reasons.
+
+     + **Mean square (Mean_sq)**
+Mean square is the average variability of between and within groups.
+The calculation is sum of square divided by degree of freedom.
+Between groups: 110126.1712 / 2 = 55063.0856
+Within group: 2656690.9574 /  7368  = 360.5715
+
+     + **F statistic (F)**
+F statistic is the ratio of the average between and within groups variabilities.
+55063.0856 / 360.5715 = 152.7106
+Since we would like to know if the SEI difference is attributed to the explanatory variable, partyid groups, we would like to see a larger “between groups variability”.   
+In this case, the between groups variability does larger than the within group variability.
+
+     + **p-value (p_value)**
+p-value is the probablity of the observed statistic given the null hypothesis is true.
+The bigger the F statistic is, the smaller the p-value will be.
+In this case, we have a relatively small p-value (much smaller than alpha = 0.05).
+
+
+* **Multiple Pairwise Comparison**  
+
+
+**Pairwise tests - t tests with pooled SD**
+So far, the F-statistic and accompanied p-value confirm the mean difference among the groups.  However, we don’t know which pair(s) of group is difference.  The pairwise tests will give us the answer.
+Here, partyid groups are arranged into 3 pairs.  Each pair is a comparison of two partyid groups.  All 3 pairs have a p-value smaller than 0.05.
+
+
+The drawback of pairwise t-test is that it will increase the chance of making Type 1 error.  The pairwise test comes with the ANOVA output did not have correction method.  Hence, we modified the pairwise t test with a correction method of Benjamini-Hochberg method.  The p-value will be adjusted accordingly.
+
+```{r pairwise.test.adjusted}
+
+pairwise.t.test(gss3$sei, gss3$partyid,
+                 p.adjust.method = "BH")
+
+```
+All 3 pairs have a very small p-value, which suggests the means of all three pairs of groups are different from each other.
+
+
+ 
+Another way is to minimize the chance of making Type 1 error is performing **Tukey Honestly Significant Difference test**, a post-hoc multiple pairwise comparison test after finding out there is mean difference from the ANOVA output.
+
+```{r Tukey multiple pairwise-comparisons}
+TukeyHSD(fit)
+TV = TukeyHSD(fit)
+
+op=par(mar=c(6,15,5,2))
+plot(TV , las=2 , col="brown" )
+
+```
+
+
+The Tukey test confirms all the means of the 3 partyid groups are all different from each other.
+
+Meanwhile, the plot displays a set of confidence intervals for the difference between pairs of means. Confidence intervals that do not contain zero indicate a mean difference that is statistically significant.  This is exactly the case in all 3 pair-wise comparisons.
+
+
+
+
+
+
+
+*  **Alternative Method**
+Since the assumed conditions of ANOVA are failed to meet, the result of F statistic is not reliable even though the p-value is quite small.  Therefore, we have to use an **non-parametric method, Kruskal-Wallis Test**, to test the hypothesis.
+ 
+```{r non-parametric test}
+kruskal.test(gss3$sei ~ gss3$partyid)
+
+```
+
+From the Kruskal-Wallis Non-parametric test result, the p-value is so small.  
+We have to reject the null hypothesis that there is no mean difference among the partyid groups.  
+
+
+* **Interpretation** 
+
+The One-way ANOVA output shows the F statistic is 152.7106 with a p-value of 0.0001.  Since the p-value is much smaller than the alpha 0.05, we will reject the Null Hypothesis that the average SEI is the same across all 3 partyid groups.  We will accept the Alternative Hypothesis that the average SEI differ between at least one pair of partyid groups.  
+
+To find out which groups are different, we performed two post hoc multiple pairwise comparison (the pairwise t-test with Benjamini-Hochberg correction to adjust the p-value and Tukey multiple pairwise-comparisons test).  All three pairs (**"Independent-Strong Democrat"**, **"Strong Republican-Strong Democrat"**, and **"Strong Republican-Independent"**) have p-values that are so small that they are close to zero.  In other words, there is statistical significant difference of average SEI between the 3 pairs: Independent-Strong Democrat, Strong Republican-Strong Democrat, and Strong Republican-Independent.  
+
+However, since the distribution of response variable SEI within each of the 3 partyid gropus in the gss3 data does not meet the normality and constant variance conditions, the result from the ANOVA will not be reliable even though the p-value is rather small.  
+
+We, therefore, use a non-parametric method, Kruskal-Wallis Test, to test the hypothesis.  The test gave us a p-value of < 2.2e-16 (close to zero).  Hence, we are able to reject the Null Hypothesis and accept the Alternative Hypothesis (i.e. there is a difference of average SEI between at least one pair of partyid group).  
+
+
+* **Why confidence interval (CI) is not included?**  
+
+In this exercise, we don’t include confidence interval.  
+
+The calculation of confidence interval includes three elements, namely, (1) the unbiased point estimator e.g. sample mean. (2) the critical value e.g. the value of 95%  confidence level in Z.  (3) SE.  e.g. sqrt of sample mean minus population mean divided by sample size.  
+
+Most often than not, SE involves only two statistics e.g. sample vs population means, proportion (success “p” vs fail “1-p”).  
+
+In our case, we are comparing means of three groups.  Hence, confidence interval is not associated in the main ANOVA process.  We hence did not use the inference function to calculate the confidence interval.  
+
+That said, when we try to determine which pair of partyid groups are difference, we did touch on the confidence interval.  For instance, the Tukey HSD test output and its plot show the confidence interval of each pair.   
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
